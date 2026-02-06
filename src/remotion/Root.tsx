@@ -1,4 +1,5 @@
 import { Composition } from 'remotion';
+import type React from 'react';
 import { CaptionComposition } from './Composition';
 import './style.css';
 

@@ -25,7 +25,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "remotion": "latest",
-    "tailwind-merge": "latest"
+    "tailwind-merge": "latest",
+    "web-worker": "^1.5.0"
   },
   "devDependencies": {
     "@types/node": "^20.17.9",

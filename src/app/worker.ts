@@ -1,12 +1,12 @@
 // products/ozzy-captions/src/app/worker.ts
-import { pipeline, env } from '@xenova/transformers';
+import { pipeline, env, type PipelineType } from '@xenova/transformers';
 
 // Skip local model checks since we are in browser
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 
 class TranscriptionPipeline {
-    static task = 'automatic-speech-recognition';
+    static task: PipelineType = 'automatic-speech-recognition';
     static model = 'xenova/whisper-tiny.en';
     static instance: any = null;
 

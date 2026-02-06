@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Play, CheckCircle, Loader2, Video, FileText } from 'lucide-react';
+import { Upload, Play, CheckCircle, Loader2, Video, FileText, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Home() {
-  const [status, setStatus] = useState<'idle' | 'processing' | 'completed'>('idle');
+  const [status, setStatus] = useState<'idle' | 'processing' | 'completed' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
@@ -16,44 +17,72 @@ export default function Home() {
 
   // Initialize the worker
   useEffect(() => {
-    if (!worker.current) {
-      // Create a new worker
-      worker.current = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+    if (typeof window === 'undefined') return;
+
+    console.log("[Main] Initializing Worker...");
+    try {
+      // Create a new worker with module type
+      worker.current = new Worker(new URL('./worker.ts', import.meta.url), {
+        type: 'module'
+      });
+
+      // Define a callback for messages from the worker
+      const onMessageReceived = (e: MessageEvent) => {
+        console.log("[Main] Received from worker:", e.data.status || 'progress_update');
+        
+        switch (e.data.status) {
+          case 'initiate':
+            setStep(0);
+            break;
+          case 'progress':
+            setProgress(e.data.progress);
+            break;
+          case 'ready':
+            setStep(1);
+            break;
+          case 'update':
+            // Optional: handle real-time updates
+            break;
+          case 'complete':
+            setResult(e.data.output);
+            setStep(2);
+            setTimeout(() => setStatus('completed'), 500);
+            break;
+          case 'error':
+            console.error("[Main] Worker reported error:", e.data.error);
+            setErrorMessage(e.data.error);
+            setStatus('error');
+            break;
+          default:
+            // Handle Xenova's raw progress updates if they don't have status
+            if (e.data.progress !== undefined) {
+              setProgress(e.data.progress);
+            }
+            break;
+        }
+      };
+
+      const onError = (e: ErrorEvent) => {
+        console.error("[Main] Worker ErrorEvent:", e.message, "at", e.filename, ":", e.lineno);
+        setErrorMessage(`Worker Error: ${e.message}`);
+        setStatus('error');
+      };
+
+      // Attach listeners
+      worker.current.addEventListener('message', onMessageReceived);
+      worker.current.addEventListener('error', onError);
+
+      // Clean up
+      return () => {
+        console.log("[Main] Terminating Worker...");
+        worker.current?.terminate();
+        worker.current = null;
+      };
+    } catch (err) {
+      console.error("[Main] Failed to initialize worker:", err);
+      setErrorMessage(err instanceof Error ? err.message : "Failed to load worker");
+      setStatus('error');
     }
-
-    // Define a callback for messages from the worker
-    const onMessageReceived = (e: MessageEvent) => {
-      switch (e.data.status) {
-        case 'initiate':
-          setStep(0);
-          break;
-        case 'progress':
-          setProgress(e.data.progress);
-          break;
-        case 'ready':
-          setStep(1);
-          break;
-        case 'update':
-          // Optional: handle real-time updates
-          break;
-        case 'complete':
-          setResult(e.data.output);
-          setStep(2);
-          setTimeout(() => setStatus('completed'), 1000);
-          break;
-        case 'error':
-          console.error("Worker error:", e.data.error);
-          alert("Transcription failed: " + e.data.error);
-          setStatus('idle');
-          break;
-      }
-    };
-
-    // Attach the callback
-    worker.current.addEventListener('message', onMessageReceived);
-
-    // Clean up
-    return () => worker.current?.removeEventListener('message', onMessageReceived);
   }, []);
 
   const steps = [
@@ -65,49 +94,62 @@ export default function Home() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
+      setStatus('idle');
+      setErrorMessage(null);
     }
   };
 
   const processVideo = async () => {
-    if (!file || !worker.current) return;
+    if (!file) return;
+    
+    if (!worker.current) {
+        setErrorMessage("Worker not initialized. Try refreshing.");
+        setStatus('error');
+        return;
+    }
+
     setStatus('processing');
-    setStep(0); // Loading Model
+    setStep(0);
+    setErrorMessage(null);
 
     try {
+      console.log("[Main] Preparing audio data...");
       // 1. Prepare Audio on the main thread (needed for AudioContext)
       const audioContext = new AudioContext({ sampleRate: 16000 });
       const arrayBuffer = await file.arrayBuffer();
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
       const audioData = audioBuffer.getChannelData(0);
 
+      console.log("[Main] Sending data to worker...");
       // 2. Send to worker
+      // We transfer the buffer to the worker for better performance
       worker.current.postMessage({
         audio: audioData,
         model: 'xenova/whisper-tiny.en'
-      });
+      }, [audioData.buffer]);
 
     } catch (error) {
-      console.error("Error processing:", error);
-      alert("Error processing video. Check console.");
-      setStatus('idle');
+      console.error("[Main] Error during audio preparation:", error);
+      setErrorMessage(error instanceof Error ? error.message : "Audio processing failed");
+      setStatus('error');
     }
   };
 
   return (
     <main className="min-h-screen bg-black text-white selection:bg-teal/30 font-sans">
       {/* Header */}
-      <nav className="p-6 border-b border-teal/10 backdrop-blur-md sticky top-0 z-50">
+      <nav className="p-6 border-b border-white/10 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-teal rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
               <span className="font-bold text-black text-xl">O</span>
             </div>
             <h1 className="text-2xl font-bold tracking-tighter">
               OZZY<span className="text-teal">CAPTIONS</span>
             </h1>
           </div>
-          <div className="text-sm font-medium text-teal/60 border border-teal/20 px-3 py-1 rounded-full">
-            $0.00 Auto-Captioning
+          <div className="text-sm font-medium text-white/60 border border-white/20 px-3 py-1 rounded-full">
+            Local AI Processing
           </div>
         </div>
       </nav>
@@ -139,12 +181,12 @@ export default function Home() {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2 }}
-          className="bg-[#0a0a0a] border border-teal/20 rounded-3xl p-8 md:p-12 relative overflow-hidden group"
+          className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-8 md:p-12 relative overflow-hidden group"
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-teal/5 blur-[100px] rounded-full -mr-32 -mt-32" />
           
           <AnimatePresence mode="wait">
-            {status === 'idle' && (
+            {(status === 'idle' || status === 'error') && (
               <motion.div 
                 key="idle"
                 initial={{ opacity: 0 }}
@@ -152,22 +194,32 @@ export default function Home() {
                 exit={{ opacity: 0 }}
                 className="flex flex-col items-center gap-8"
               >
+                {status === 'error' && (
+                  <div className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3 text-red-400">
+                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Error Occurred</p>
+                      <p className="text-sm opacity-80">{errorMessage}</p>
+                    </div>
+                  </div>
+                )}
+
                 <label className="cursor-pointer flex flex-col items-center gap-4 w-full">
                    <input 
                     type="file" 
                     className="hidden" 
-                    accept="video/*"
+                    accept="video/*,audio/*"
                     onChange={handleFileChange}
                   />
-                  <div className={`w-20 h-20 rounded-2xl flex items-center justify-center border transition-all duration-300 ${file ? 'bg-teal text-black border-teal' : 'bg-teal/10 border-teal/20 group-hover:border-teal/50'}`}>
-                    {file ? <CheckCircle className="w-10 h-10" /> : <Upload className="w-10 h-10 text-teal" />}
+                  <div className={`w-20 h-20 rounded-2xl flex items-center justify-center border transition-all duration-300 ${file ? 'bg-teal text-black border-teal' : 'bg-white/5 border-white/10 group-hover:border-white/20'}`}>
+                    {file ? <CheckCircle className="w-10 h-10" /> : <Upload className="w-10 h-10 text-white" />}
                   </div>
                   <div className="text-center">
                     <h3 className="text-2xl font-bold mb-2">
                       {file ? file.name : "Drop your video here"}
                     </h3>
                     <p className="text-gray-500">
-                      {file ? `${(file.size / (1024 * 1024)).toFixed(2)} MB selected` : "MP4, MOV or WEBM. Max 500MB."}
+                      {file ? `${(file.size / (1024 * 1024)).toFixed(2)} MB selected` : "MP4, MOV, WEBM or MP3."}
                     </p>
                   </div>
                 </label>
@@ -178,7 +230,7 @@ export default function Home() {
                   className={`px-8 py-4 rounded-xl font-bold text-lg transition-all flex items-center gap-2 ${
                     file 
                       ? 'bg-teal text-black hover:bg-white cursor-pointer' 
-                      : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                      : 'bg-gray-800 text-gray-400 cursor-not-allowed'
                   }`}
                 >
                   <Play className="w-5 h-5 fill-current" />
@@ -210,7 +262,7 @@ export default function Home() {
                         key={idx}
                         className={`flex items-center gap-4 p-4 rounded-xl border transition-all duration-500 ${
                           idx === step 
-                            ? 'bg-teal/10 border-teal/50' 
+                            ? 'bg-white/10 border-white/20' 
                             : idx < step 
                               ? 'bg-teal/5 border-teal/20 opacity-50' 
                               : 'bg-white/5 border-white/10 opacity-30'
@@ -221,7 +273,18 @@ export default function Home() {
                         }`}>
                           {idx < step ? <CheckCircle className="w-6 h-6" /> : s.icon}
                         </div>
-                        <span className="font-bold text-lg">{s.name}</span>
+                        <div className="flex-1">
+                            <span className="font-bold text-lg block">{s.name}</span>
+                            {idx === step && (
+                                <div className="mt-2 w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                                    <motion.div 
+                                        className="bg-teal h-full"
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${progress}%` }}
+                                    />
+                                </div>
+                            )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -254,7 +317,7 @@ export default function Home() {
                 <div className="flex gap-4">
                   <button 
                     onClick={() => setStatus('idle')}
-                    className="border border-teal/20 px-8 py-4 rounded-xl font-bold hover:bg-teal/10 transition-colors"
+                    className="border border-white/20 px-8 py-4 rounded-xl font-bold hover:bg-white/10 transition-colors"
                   >
                     Start Over
                   </button>

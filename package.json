@@ -10,11 +10,14 @@
     "remotion": "remotion"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@remotion/bundler": "latest",
     "@remotion/cli": "latest",
     "@remotion/player": "latest",
     "@remotion/renderer": "latest",
     "@tailwindcss/postcss": "^4.1.18",
+    "@xenova/transformers": "^2.17.2",
     "clsx": "latest",
     "framer-motion": "latest",
     "lucide-react": "latest",

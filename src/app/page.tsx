@@ -1,18 +1,27 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Upload, Play, CheckCircle, Loader2, Video, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// Worker import (We'll implement a worker for non-blocking UI later, keeping it simple for now)
+import { pipeline, env } from '@xenova/transformers';
+
+// Skip local model checks since we are in browser
+env.allowLocalModels = false;
+env.useBrowserCache = false;
 
 export default function Home() {
   const [status, setStatus] = useState<'idle' | 'processing' | 'completed'>('idle');
   const [step, setStep] = useState(0);
   const [file, setFile] = useState<File | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [result, setResult] = useState<any>(null);
 
   const steps = [
-    { name: 'Extracting Audio', icon: <Video className="w-5 h-5" /> },
-    { name: 'Whisper AI Transcribe', icon: <FileText className="w-5 h-5" /> },
-    { name: 'Remotion Video Render', icon: <Play className="w-5 h-5" /> },
+    { name: 'Loading Whisper Model', icon: <Video className="w-5 h-5" /> },
+    { name: 'Transcribing Audio', icon: <FileText className="w-5 h-5" /> },
+    { name: 'Generating Captions', icon: <Play className="w-5 h-5" /> },
   ];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -21,22 +30,39 @@ export default function Home() {
     }
   };
 
-  const handleStart = () => {
+  const processVideo = async () => {
     if (!file) return;
     setStatus('processing');
-    setStep(0);
-    
-    // Simulate pipeline steps
-    let currentStep = 0;
-    const interval = setInterval(() => {
-      currentStep++;
-      if (currentStep >= steps.length) {
-        clearInterval(interval);
-        setStatus('completed');
-      } else {
-        setStep(currentStep);
-      }
-    }, 3000);
+    setStep(0); // Loading Model
+
+    try {
+      // 1. Initialize Model
+      const transcriber = await pipeline('automatic-speech-recognition', 'xenova/whisper-tiny.en');
+      setStep(1); // Transcribing
+
+      // 2. Prepare Audio
+      const audioContext = new AudioContext({ sampleRate: 16000 });
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      const audioData = audioBuffer.getChannelData(0);
+
+      // 3. Transcribe
+      const out = await transcriber(audioData, {
+        chunk_length_s: 30,
+        stride_length_s: 5,
+      });
+
+      console.log("Transcription:", out);
+      setResult(out);
+      
+      setStep(2); // Done
+      setTimeout(() => setStatus('completed'), 1000);
+
+    } catch (error) {
+      console.error("Error processing:", error);
+      alert("Error processing video. Check console.");
+      setStatus('idle');
+    }
   };
 
   return (
@@ -119,7 +145,7 @@ export default function Home() {
                 </label>
 
                 <button 
-                  onClick={handleStart}
+                  onClick={processVideo}
                   disabled={!file}
                   className={`px-8 py-4 rounded-xl font-bold text-lg transition-all flex items-center gap-2 ${
                     file 
@@ -188,7 +214,14 @@ export default function Home() {
                 </div>
                 <div className="text-center">
                   <h3 className="text-3xl font-bold mb-2">Done!</h3>
-                  <p className="text-gray-400">Your captioned video is ready for download.</p>
+                  <p className="text-gray-400">Your captioned video is ready.</p>
+                  
+                  {result && (
+                     <div className="mt-4 p-4 bg-gray-900 rounded-lg text-left max-w-lg max-h-40 overflow-y-auto font-mono text-xs text-teal/80">
+                       {JSON.stringify(result, null, 2)}
+                     </div>
+                  )}
+
                 </div>
                 <div className="flex gap-4">
                   <button 

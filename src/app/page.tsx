@@ -7,14 +7,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function Home() {
   const [status, setStatus] = useState<'idle' | 'processing' | 'completed'>('idle');
   const [step, setStep] = useState(0);
+  const [file, setFile] = useState<File | null>(null);
 
-  const steps = [
-    { name: 'Extracting Audio', icon: <Video className="w-5 h-5" /> },
-    { name: 'Whisper AI Transcribe', icon: <FileText className="w-5 h-5" /> },
-    { name: 'Remotion Video Render', icon: <Play className="w-5 h-5" /> },
-  ];
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
 
   const handleStart = () => {
+    if (!file) return;
     setStatus('processing');
     setStep(0);
     
@@ -90,16 +92,34 @@ export default function Home() {
                 exit={{ opacity: 0 }}
                 className="flex flex-col items-center gap-8"
               >
-                <div className="w-20 h-20 bg-teal/10 rounded-2xl flex items-center justify-center border border-teal/20 group-hover:border-teal/50 transition-colors">
-                  <Upload className="w-10 h-10 text-teal" />
-                </div>
-                <div className="text-center">
-                  <h3 className="text-2xl font-bold mb-2">Drop your video here</h3>
-                  <p className="text-gray-500">MP4, MOV or WEBM. Max 500MB.</p>
-                </div>
+                <label className="cursor-pointer flex flex-col items-center gap-4 w-full">
+                   <input 
+                    type="file" 
+                    className="hidden" 
+                    accept="video/*"
+                    onChange={handleFileChange}
+                  />
+                  <div className={`w-20 h-20 rounded-2xl flex items-center justify-center border transition-all duration-300 ${file ? 'bg-teal text-black border-teal' : 'bg-teal/10 border-teal/20 group-hover:border-teal/50'}`}>
+                    {file ? <CheckCircle className="w-10 h-10" /> : <Upload className="w-10 h-10 text-teal" />}
+                  </div>
+                  <div className="text-center">
+                    <h3 className="text-2xl font-bold mb-2">
+                      {file ? file.name : "Drop your video here"}
+                    </h3>
+                    <p className="text-gray-500">
+                      {file ? `${(file.size / (1024 * 1024)).toFixed(2)} MB selected` : "MP4, MOV or WEBM. Max 500MB."}
+                    </p>
+                  </div>
+                </label>
+
                 <button 
                   onClick={handleStart}
-                  className="bg-teal text-black px-8 py-4 rounded-xl font-bold text-lg hover:bg-white transition-colors flex items-center gap-2"
+                  disabled={!file}
+                  className={`px-8 py-4 rounded-xl font-bold text-lg transition-all flex items-center gap-2 ${
+                    file 
+                      ? 'bg-teal text-black hover:bg-white cursor-pointer' 
+                      : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                  }`}
                 >
                   <Play className="w-5 h-5 fill-current" />
                   Generate Captions

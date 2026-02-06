@@ -9,6 +9,12 @@ export default function Home() {
   const [step, setStep] = useState(0);
   const [file, setFile] = useState<File | null>(null);
 
+  const steps = [
+    { name: 'Extracting Audio', icon: <Video className="w-5 h-5" /> },
+    { name: 'Whisper AI Transcribe', icon: <FileText className="w-5 h-5" /> },
+    { name: 'Remotion Video Render', icon: <Play className="w-5 h-5" /> },
+  ];
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);

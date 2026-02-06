@@ -10,17 +10,17 @@
     "remotion": "remotion"
   },
   "dependencies": {
-    "next": "15.1.0",
+    "@remotion/bundler": "latest",
+    "@remotion/cli": "latest",
+    "@remotion/player": "latest",
+    "@remotion/renderer": "latest",
+    "clsx": "latest",
+    "framer-motion": "latest",
+    "lucide-react": "latest",
+    "next": "^16.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "remotion": "latest",
-    "@remotion/cli": "latest",
-    "@remotion/player": "latest",
-    "@remotion/bundler": "latest",
-    "@remotion/renderer": "latest",
-    "lucide-react": "latest",
-    "framer-motion": "latest",
-    "clsx": "latest",
     "tailwind-merge": "latest"
   },
   "devDependencies": {
@@ -28,7 +28,7 @@
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.1",
     "eslint": "^9",
-    "eslint-config-next": "15.1.0",
+    "eslint-config-next": "^16.1.6",
     "postcss": "^8",
     "tailwindcss": "^4",
     "typescript": "^5"

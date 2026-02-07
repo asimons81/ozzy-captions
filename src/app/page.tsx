@@ -28,20 +28,43 @@ export default function Home() {
 
       // Define a callback for messages from the worker
       const onMessageReceived = (e: MessageEvent) => {
-        console.log("[Main] Received from worker:", e.data.status || 'progress_update');
+        // Log all messages from worker for debugging
+        console.log("[Main] Worker Message:", e.data);
         
-        switch (e.data.status) {
+        const { status, progress, file } = e.data;
+
+        const normalizeProgress = (p: number) => (p <= 1 ? p * 100 : p);
+
+        switch (status) {
+          case 'worker_alive':
+            console.log("[Main] Worker is alive and ready");
+            break;
           case 'initiate':
             setStep(0);
+            setProgress(0);
             break;
+          case 'download':
           case 'progress':
-            setProgress(e.data.progress);
+            if (progress !== undefined) {
+              setProgress(normalizeProgress(progress));
+            }
+            break;
+          case 'done':
+            // One file finished, but others might follow. 
+            // We can keep the progress at 100 for this file until the next one starts
+            setProgress(100);
             break;
           case 'ready':
+            console.log("[Main] Model ready for transcription");
             setStep(1);
+            setProgress(0); // Reset progress for the next step (transcription)
             break;
           case 'update':
-            // Optional: handle real-time updates
+            // Handle real-time transcription updates
+            if (e.data.progress !== undefined) {
+                // This might be transcription progress
+                setProgress(normalizeProgress(e.data.progress));
+            }
             break;
           case 'complete':
             setResult(e.data.output);
@@ -54,9 +77,9 @@ export default function Home() {
             setStatus('error');
             break;
           default:
-            // Handle Xenova's raw progress updates if they don't have status
-            if (e.data.progress !== undefined) {
-              setProgress(e.data.progress);
+            // Fallback for any other messages with progress
+            if (progress !== undefined) {
+              setProgress(normalizeProgress(progress));
             }
             break;
         }

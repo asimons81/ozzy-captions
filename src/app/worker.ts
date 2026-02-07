@@ -5,6 +5,12 @@ console.log('[Worker] Worker script loaded and initializing...');
 // Notify main thread that worker is alive
 self.postMessage({ status: 'worker_alive' });
 
+// Global error handler for the worker
+self.onerror = (event) => {
+    console.error('[Worker Global Error]', event);
+    self.postMessage({ status: 'error', error: `Global Worker Error: ${String(event)}` });
+};
+
 // Skip local model checks since we are in browser
 env.allowLocalModels = false;
 env.allowRemoteModels = true;
@@ -12,7 +18,8 @@ env.useBrowserCache = true;
 
 // Ensure ONNX runtime wasm files load correctly in browser
 // (otherwise it can hang at 0% if the wasm files 404)
-env.backends.onnx.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/';
+// Using 1.14.0 to match the @xenova/transformers 2.17.2 dependency
+env.backends.onnx.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/';
 // Avoid SharedArrayBuffer requirements on hosts without cross-origin isolation
 env.backends.onnx.wasm.numThreads = 1;
 
@@ -82,13 +89,27 @@ self.addEventListener('message', async (event) => {
 
         // Run transcription
         console.log('[Worker] Starting transcription execution...');
+        const totalDuration = audio.length / 16000;
+        
         const output = await transcriber(audio, {
             chunk_length_s: 30,
             stride_length_s: 5,
             // callback_function is for real-time updates
             callback_function: (item: any) => {
+                // Calculate progress based on how many seconds have been processed
+                // Whisper callback 'item' contains chunks or partial results
+                let currentProgress = 0;
+                if (item && item.chunks && item.chunks.length > 0) {
+                    const lastChunk = item.chunks[item.chunks.length - 1];
+                    if (lastChunk.timestamp) {
+                        const currentTime = lastChunk.timestamp[1] || lastChunk.timestamp[0];
+                        currentProgress = (currentTime / totalDuration) * 100;
+                    }
+                }
+
                 self.postMessage({
                     status: 'update',
+                    progress: currentProgress,
                     ...item
                 });
             }

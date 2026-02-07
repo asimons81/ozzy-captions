@@ -151,6 +151,9 @@ export default function Home() {
         model: 'xenova/whisper-tiny.en'
       }, [audioData.buffer]);
 
+      // Close audio context to free up resources
+      audioContext.close();
+
     } catch (error) {
       console.error("[Main] Error during audio preparation:", error);
       setErrorMessage(error instanceof Error ? error.message : "Audio processing failed");

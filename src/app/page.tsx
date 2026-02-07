@@ -152,6 +152,54 @@ export default function Home() {
     }
   };
 
+  const [isRendering, setIsRendering] = useState(false);
+
+  const handleDownload = async () => {
+    if (!result || !file) return;
+    
+    if (useBridge) {
+        try {
+            setIsRendering(true);
+            addLog("Hybrid: Requesting Render...");
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            // result is the object { segments: [...] }
+            formData.append('segments', JSON.stringify(result.segments));
+
+            const response = await fetch(`${bridgeUrl}/render`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.detail || 'Bridge render failed');
+            }
+
+            // Trigger download
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `captioned_${file.name.replace(/\.[^/.]+$/, "")}.mp4`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            addLog("Hybrid: Download started");
+
+        } catch (error) {
+            console.error("[Main] Render error:", error);
+            addLog(`Render Error: ${error instanceof Error ? error.message : 'failed'}`);
+            setErrorMessage("Rendering failed on the bridge.");
+        } finally {
+            setIsRendering(false);
+        }
+    } else {
+        alert("Video rendering is only available in Hybrid Mode for now. Please download the transcript.");
+    }
+  };
+
   const processVideo = async () => {
     if (!file) return;
     
@@ -431,8 +479,19 @@ export default function Home() {
                   >
                     Start Over
                   </button>
-                  <button className="bg-teal text-black px-8 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-white transition-colors">
-                    Download Video
+                  <button 
+                    onClick={handleDownload}
+                    disabled={isRendering}
+                    className="bg-teal text-black px-8 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-white transition-colors disabled:opacity-50"
+                  >
+                    {isRendering ? (
+                        <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Rendering...
+                        </>
+                    ) : (
+                        "Download Video"
+                    )}
                   </button>
                 </div>
               </motion.div>

@@ -239,8 +239,9 @@ export default function Home() {
               OZZY<span className="text-teal">CAPTIONS</span>
             </h1>
           </div>
-          <div className="text-sm font-medium text-white/60 border border-white/20 px-3 py-1 rounded-full">
-            Local AI Processing
+          <div className="text-sm font-medium text-white/60 border border-white/20 px-3 py-1 rounded-full flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${useBridge ? 'bg-teal animate-pulse' : 'bg-yellow-500'}`} />
+            {useBridge ? 'Hybrid: Bridge Online' : 'Browser Mode'}
           </div>
         </div>
       </nav>
@@ -327,6 +328,13 @@ export default function Home() {
                   <Play className="w-5 h-5 fill-current" />
                   Generate Captions
                 </button>
+
+                {logs.length > 0 && (
+                    <div className="w-full bg-black/40 border border-white/5 p-4 rounded-xl font-mono text-[10px] text-gray-500 max-h-32 overflow-y-auto mt-4">
+                      <p className="text-gray-400 mb-2 font-bold uppercase tracking-widest text-[9px]">Live Diagnostics</p>
+                      {logs.map((log, i) => <div key={i}>{`> ${log}`}</div>)}
+                    </div>
+                )}
               </motion.div>
             )}
 

@@ -12,9 +12,32 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<any>(null);
   const [logs, setLogs] = useState<string[]>([]);
+  const [bridgeUrl, setBridgeUrl] = useState<string>('https://disclosure-jerry-church-sleeps.trycloudflare.com');
+  const [useBridge, setUseBridge] = useState<boolean>(true);
 
   // We use a ref to store the worker
   const worker = useRef<Worker | null>(null);
+
+  // Check if bridge is alive
+  useEffect(() => {
+    const checkBridge = async () => {
+        try {
+            const resp = await fetch(`${bridgeUrl}/health`);
+            if (resp.ok) {
+                console.log("[Main] Local Bridge is alive");
+                addLog("Local Bridge: ONLINE (Hybrid Mode)");
+                setUseBridge(true);
+            } else {
+                setUseBridge(false);
+            }
+        } catch (e) {
+            console.log("[Main] Local Bridge not reachable, using Browser AI");
+            addLog("Local Bridge: OFFLINE (Browser Mode)");
+            setUseBridge(false);
+        }
+    };
+    checkBridge();
+  }, [bridgeUrl]);
 
   const addLog = (msg: string) => {
     setLogs(prev => [msg, ...prev].slice(0, 10));
@@ -142,8 +165,43 @@ export default function Home() {
     setStep(0);
     setErrorMessage(null);
 
+    if (useBridge) {
+        try {
+            console.log("[Main] Using Hybrid Bridge for transcription...");
+            addLog("Hybrid: Sending file to local machine...");
+            
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch(`${bridgeUrl}/transcribe`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.detail || 'Bridge transcription failed');
+            }
+
+            const data = await response.json();
+            console.log("[Main] Hybrid transcription complete:", data);
+            addLog("Hybrid: Transcription received");
+            
+            setResult(data);
+            setStep(2);
+            setTimeout(() => setStatus('completed'), 500);
+            return;
+
+        } catch (error) {
+            console.error("[Main] Bridge error, falling back to Browser AI:", error);
+            addLog(`Hybrid Error: ${error instanceof Error ? error.message : 'failed'}`);
+            // Don't return, fall through to browser AI
+            setUseBridge(false);
+        }
+    }
+
     try {
-      console.log("[Main] Preparing audio data...");
+      console.log("[Main] Preparing audio data for Browser AI...");
       // 1. Prepare Audio on the main thread (needed for AudioContext)
       const audioContext = new AudioContext({ sampleRate: 16000 });
       const arrayBuffer = await file.arrayBuffer();

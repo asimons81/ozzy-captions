@@ -276,13 +276,17 @@ export default function Home() {
                         <div className="flex-1">
                             <span className="font-bold text-lg block">{s.name}</span>
                             {idx === step && (
-                                <div className="mt-2 w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                                <div className="mt-2 w-full bg-white/10 h-1.5 rounded-full overflow-hidden relative">
                                     <motion.div 
-                                        className="bg-teal h-full"
-                                        initial={{ width: 0 }}
-                                        animate={{ width: `${progress}%` }}
+                                        className="bg-teal h-full absolute left-0 top-0"
+                                        style={{ width: `${Math.min(Math.max(progress, 0), 100)}%` }}
                                     />
                                 </div>
+                            )}
+                            {idx === step && (
+                                <span className="text-xs text-gray-400 mt-1 block">
+                                    {progress ? `${Math.round(progress)}%` : 'Initializing...'}
+                                </span>
                             )}
                         </div>
                       </div>

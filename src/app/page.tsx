@@ -11,9 +11,14 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<any>(null);
+  const [logs, setLogs] = useState<string[]>([]);
 
   // We use a ref to store the worker
   const worker = useRef<Worker | null>(null);
+
+  const addLog = (msg: string) => {
+    setLogs(prev => [msg, ...prev].slice(0, 10));
+  };
 
   // Initialize the worker
   useEffect(() => {
@@ -30,6 +35,7 @@ export default function Home() {
       const onMessageReceived = (e: MessageEvent) => {
         // Log all messages from worker for debugging
         console.log("[Main] Worker Message:", e.data);
+        addLog(`Worker: ${e.data.status || 'event'}`);
         
         const { status, progress, file } = e.data;
 
@@ -73,7 +79,8 @@ export default function Home() {
             break;
           case 'error':
             console.error("[Main] Worker reported error:", e.data.error);
-            setErrorMessage(e.data.error);
+            const detailedError = typeof e.data.error === 'object' ? JSON.stringify(e.data.error) : String(e.data.error);
+            setErrorMessage(detailedError);
             setStatus('error');
             break;
           default:
@@ -318,6 +325,13 @@ export default function Home() {
                       </div>
                     ))}
                   </div>
+
+                  {logs.length > 0 && (
+                    <div className="bg-black/40 border border-white/5 p-4 rounded-xl font-mono text-[10px] text-gray-500 max-h-32 overflow-y-auto">
+                      <p className="text-gray-400 mb-2 font-bold uppercase tracking-widest text-[9px]">Live Diagnostics</p>
+                      {logs.map((log, i) => <div key={i}>{`> ${log}`}</div>)}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}

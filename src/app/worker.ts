@@ -1,6 +1,19 @@
 import { pipeline, env, type PipelineType } from '@xenova/transformers';
 
-console.log('[Worker] Worker script loaded and initializing...');
+// Configuration
+env.allowLocalModels = false;
+env.allowRemoteModels = true;
+env.useBrowserCache = true;
+
+// Ensure ONNX runtime wasm files load correctly in browser
+// (otherwise it can hang at 0% if the wasm files 404)
+// Using a more robust version-less path if possible, or sticking to the exact version
+env.backends.onnx.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/';
+// Avoid SharedArrayBuffer requirements on hosts without cross-origin isolation
+env.backends.onnx.wasm.numThreads = 1;
+env.backends.onnx.wasm.proxy = true;
+
+console.log('[Worker] Worker script loaded and initializing...', { env: JSON.parse(JSON.stringify(env)) });
 
 // Notify main thread that worker is alive
 self.postMessage({ status: 'worker_alive' });
@@ -10,18 +23,6 @@ self.onerror = (event) => {
     console.error('[Worker Global Error]', event);
     self.postMessage({ status: 'error', error: `Global Worker Error: ${String(event)}` });
 };
-
-// Skip local model checks since we are in browser
-env.allowLocalModels = false;
-env.allowRemoteModels = true;
-env.useBrowserCache = true;
-
-// Ensure ONNX runtime wasm files load correctly in browser
-// (otherwise it can hang at 0% if the wasm files 404)
-// Using 1.14.0 to match the @xenova/transformers 2.17.2 dependency
-env.backends.onnx.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/';
-// Avoid SharedArrayBuffer requirements on hosts without cross-origin isolation
-env.backends.onnx.wasm.numThreads = 1;
 
 /**
  * This class uses the singleton pattern to ensure that only one instance of the
@@ -42,12 +43,20 @@ class TranscriptionPipeline {
                     progress_callback,
                     // Additional options for better reliability
                     revision: 'main',
+                    // Use custom quantized models if needed, but tiny is safe
                 });
                 console.log('[Worker] Pipeline initialized successfully');
             } catch (error) {
                 console.error('[Worker] Error initializing pipeline:', error);
-                this.instance = null; // Reset on failure
-                throw error;
+                
+                // Fallback: try loading without progress callback or with different settings
+                if (progress_callback) {
+                    console.log('[Worker] Retrying without progress callback...');
+                    this.instance = await pipeline(this.task, this.model);
+                } else {
+                    this.instance = null;
+                    throw error;
+                }
             }
         }
         return this.instance;
